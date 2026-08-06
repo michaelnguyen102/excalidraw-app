@@ -1,9 +1,10 @@
-
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type User,
@@ -34,8 +35,31 @@ export const getFirebaseAuth = () => {
 
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
-  const result = await signInWithPopup(getFirebaseAuth(), provider);
-  return result.user;
+  // Ensure prompt select account
+  provider.setCustomParameters({ prompt: "select_account" });
+  try {
+    const result = await signInWithPopup(getFirebaseAuth(), provider);
+    return result.user;
+  } catch (e: any) {
+    const code = e?.code || "";
+    if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+      // Fallback to redirect - will reload page
+      await signInWithRedirect(getFirebaseAuth(), provider);
+      // This line never returns because redirect happens
+      return null as unknown as User;
+    }
+    throw e;
+  }
+};
+
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(getFirebaseAuth());
+    return result?.user ?? null;
+  } catch (e) {
+    console.warn("redirect result error", e);
+    return null;
+  }
 };
 
 export const signOut = async () => {
