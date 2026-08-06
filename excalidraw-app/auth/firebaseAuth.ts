@@ -35,7 +35,11 @@ export const signInWithGoogle = async () => {
     return result.user;
   } catch (e: any) {
     const code = e?.code || "";
-    if (code === "auth/popup-blocked") {
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request"
+    ) {
       await signInWithRedirect(getFirebaseAuth(), provider);
       return null as unknown as User;
     }
