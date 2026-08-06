@@ -8,7 +8,7 @@ type Props = {
 };
 
 export const Dashboard = ({ onOpen, onBack }: Props) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [diagrams, setDiagrams] = useState<DiagramDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -37,7 +37,7 @@ export const Dashboard = ({ onOpen, onBack }: Props) => {
 
   useEffect(() => {
     load();
-  }, [user?.uid]);
+  }, [user?.uid, authLoading]);
 
   const handleCreate = async () => {
     if (!user) {
@@ -58,6 +58,14 @@ export const Dashboard = ({ onOpen, onBack }: Props) => {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div style={{ padding: 32, maxWidth: 720, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700 }}>My Diagrams</h1>
+        <p style={{ marginTop: 12, opacity: 0.7 }}>Loading…</p>
+      </div>
+    );
+  }
   if (!user) {
     return (
       <div style={{ padding: 32, maxWidth: 720, margin: "0 auto" }}>

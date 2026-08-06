@@ -6,14 +6,23 @@ import {
   getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   type User,
 } from "firebase/auth";
 import { getFirebaseApp } from "../data/firebaseApp";
 
 let auth: ReturnType<typeof getAuth> | null = null;
+let persistenceSet = false;
 export const getFirebaseAuth = () => {
   if (!auth) {
     auth = getAuth(getFirebaseApp());
+    if (!persistenceSet) {
+      persistenceSet = true;
+      setPersistence(auth, browserLocalPersistence).catch((e) =>
+        console.warn("auth persistence failed", e),
+      );
+    }
   }
   return auth;
 };
@@ -26,7 +35,7 @@ export const signInWithGoogle = async () => {
     return result.user;
   } catch (e: any) {
     const code = e?.code || "";
-    if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+    if (code === "auth/popup-blocked") {
       await signInWithRedirect(getFirebaseAuth(), provider);
       return null as unknown as User;
     }

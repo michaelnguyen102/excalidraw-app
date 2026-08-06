@@ -123,7 +123,7 @@ import {
 } from "./data/localStorage";
 
 import { loadFilesFromFirebase } from "./data/firebase";
-import { AuthButton, useAuth } from "./components/Auth";
+import { AuthButton, AuthProvider, useAuth } from "./components/Auth";
 import { Dashboard } from "./components/Dashboard";
 import {
   getDiagram,
@@ -131,7 +131,6 @@ import {
   parseAppState,
   updateDiagram,
 } from "./data/diagrams";
-import { subscribeAuth } from "./auth/firebaseAuth";
 import {
   LibraryIndexedDBAdapter,
   LibraryLocalStorageMigrationAdapter,
@@ -1492,9 +1491,11 @@ const ExcalidrawApp = () => {
   return (
     <TopErrorBoundary>
       <Provider store={appJotaiStore}>
+        <AuthProvider>
         <ExcalidrawAPIProvider>
           <ExcalidrawWrapper />
         </ExcalidrawAPIProvider>
+        </AuthProvider>
       </Provider>
     </TopErrorBoundary>
   );

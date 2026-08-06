@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { subscribeAuth, signInWithGoogle, signOut, handleRedirectResult, type User } from "../auth/firebaseAuth";
 
-export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+type AuthState = { user: User | null; loading: boolean };
+const AuthCtx = createContext<AuthState>({ user: null, loading: true });
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [state, setState] = useState<AuthState>({ user: null, loading: true });
   useEffect(() => {
-    handleRedirectResult();
+    handleRedirectResult().catch(() => {});
     const unsub = subscribeAuth((u) => {
-      setUser(u);
-      setLoading(false);
+      setState({ user: u, loading: false });
     });
     return () => unsub();
   }, []);
-  return { user, loading };
+  return <AuthCtx.Provider value={state}>{children}</AuthCtx.Provider>;
 };
+
+export const useAuth = () => useContext(AuthCtx);
 
 export const AuthButton = () => {
   const { user, loading } = useAuth();
