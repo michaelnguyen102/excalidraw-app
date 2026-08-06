@@ -123,6 +123,15 @@ import {
 } from "./data/localStorage";
 
 import { loadFilesFromFirebase } from "./data/firebase";
+import { AuthButton, useAuth } from "./components/Auth";
+import { Dashboard } from "./components/Dashboard";
+import {
+  getDiagram,
+  parseElements,
+  parseAppState,
+  updateDiagram,
+} from "./data/diagrams";
+import { subscribeAuth } from "./auth/firebaseAuth";
 import {
   LibraryIndexedDBAdapter,
   LibraryLocalStorageMigrationAdapter,
@@ -375,6 +384,41 @@ const initializeScene = async (opts: {
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
+  // Cloud diagrams + dashboard state
+  const { user: cloudUser } = useAuth();
+  const [cloudStatus, setCloudStatus] = useState<"saved" | "saving" | "offline">("saved");
+  const [view, setView] = useState<"editor" | "dashboard">(() => {
+    const sp = new URLSearchParams(window.location.search);
+    return sp.get("view") === "dashboard" ? "dashboard" : "editor";
+  });
+  const [diagramId, setDiagramId] = useState<string | null>(() => {
+    const sp = new URLSearchParams(window.location.search);
+    return sp.get("diagram") || localStorage.getItem("excalidraw-current-diagram");
+  });
+  const [diagramName, setDiagramName] = useState<string>("Untitled");
+  const cloudSaveRef = useRef(
+    debounce(
+      async (
+        elements: readonly any[],
+        appState: any,
+        files: any,
+        diagId: string | null,
+        uid: string | undefined,
+      ) => {
+        if (!diagId || !uid) return;
+        try {
+          setCloudStatus("saving");
+          await updateDiagram(diagId, { elements, appState, files });
+          setCloudStatus("saved");
+        } catch (e) {
+          console.error("cloud save failed", e);
+          setCloudStatus("offline");
+        }
+      },
+      1500,
+    ),
+  );
+
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
 
@@ -556,6 +600,38 @@ const ExcalidrawWrapper = () => {
     },
     [collabAPI, excalidrawAPI],
   );
+
+  // Cloud: load diagram from Firestore when ?diagram= is present
+  useEffect(() => {
+    if (!excalidrawAPI || !diagramId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await getDiagram(diagramId);
+        if (!doc || cancelled) return;
+        if (doc.ownerId !== cloudUser?.uid) {
+          // allow anyone with link to view — keep read open for MVP
+        }
+        setDiagramName(doc.name || "Untitled");
+        localStorage.setItem("excalidraw-current-diagram", diagramId);
+        const els = restoreElements(parseElements(doc), null, {
+          repairBindings: true,
+          deleteInvisibleElements: true,
+        });
+        const st = restoreAppState(parseAppState(doc) as any, null);
+        excalidrawAPI.updateScene({
+          elements: els,
+          appState: st,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+      } catch (e) {
+        console.error("load diagram failed", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [excalidrawAPI, diagramId, cloudUser?.uid]);
 
   useEffect(() => {
     if (!excalidrawAPI || (!isCollabDisabled && !collabAPI)) {
@@ -753,6 +829,11 @@ const ExcalidrawWrapper = () => {
       });
     }
 
+    // Cloud save (debounced) — only if signed in and diagram selected
+    if (diagramId && cloudUser) {
+      cloudSaveRef.current(elements, appState, files, diagramId, cloudUser.uid);
+    }
+
     // Render the debug scene if the debug canvas is available
     if (debugCanvasRef.current && excalidrawAPI) {
       debugRenderer(
@@ -938,6 +1019,35 @@ const ExcalidrawWrapper = () => {
     },
   };
 
+  // Dashboard full-page view
+  if (view === "dashboard") {
+    return (
+      <div style={{ height: "100vh", overflow: "auto", background: "#fafafa" }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8e8e8", background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 10 }}>
+          <strong style={{ fontSize: 14 }}>Excalidraw SaaS</strong>
+          <AuthButton />
+        </div>
+        <Dashboard
+          onOpen={(id) => {
+            setDiagramId(id);
+            localStorage.setItem("excalidraw-current-diagram", id);
+            const url = new URL(window.location.href);
+            url.searchParams.set("diagram", id);
+            url.searchParams.delete("view");
+            window.history.pushState({}, "", url.toString());
+            setView("editor");
+          }}
+          onBack={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("view");
+            window.history.pushState({}, "", url.toString());
+            setView("editor");
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       style={{ height: "100%" }}
@@ -945,6 +1055,77 @@ const ExcalidrawWrapper = () => {
         "is-collaborating": isCollaborating,
       })}
     >
+      <div
+        style={{
+          position: "absolute",
+          top: 8,
+          left: 12,
+          right: 12,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          zIndex: 5,
+          pointerEvents: "none",
+        }}
+      >
+        <div style={{ display: "flex", gap: 8, pointerEvents: "auto", alignItems: "center" }}>
+          <button
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set("view", "dashboard");
+              window.history.pushState({}, "", url.toString());
+              setView("dashboard");
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              background: "#fff",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: 12,
+            }}
+          >
+            ☰ My Diagrams
+          </button>
+          {diagramId && (
+            <span
+              style={{
+                fontSize: 12,
+                background: "#fff",
+                border: "1px solid #e8e8e8",
+                padding: "4px 8px",
+                borderRadius: 6,
+                maxWidth: 180,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={diagramName}
+            >
+              {diagramName} • {cloudUser ? (cloudStatus === "saving" ? "Saving…" : cloudStatus === "saved" ? "Saved ✓" : "Offline") : "Local only (sign in to save)"}
+            </span>
+          )}
+          {diagramId && (
+            <button
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("diagram");
+                localStorage.removeItem("excalidraw-current-diagram");
+                window.history.pushState({}, "", url.toString());
+                setDiagramId(null);
+                setDiagramName("Untitled");
+              }}
+              style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 11 }}
+            >
+              New canvas
+            </button>
+          )}
+        </div>
+        <div style={{ pointerEvents: "auto" }}>
+          <AuthButton />
+        </div>
+      </div>
       <Excalidraw
         viewportStatusFrame={viewportStatusFrame}
         userToFollow={userToFollow}
