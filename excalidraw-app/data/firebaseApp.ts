@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 
-let FIREBASE_CONFIG: Record<string, any>;
+export let FIREBASE_CONFIG: Record<string, any>;
 try {
   FIREBASE_CONFIG = JSON.parse(import.meta.env.VITE_APP_FIREBASE_CONFIG);
 } catch {

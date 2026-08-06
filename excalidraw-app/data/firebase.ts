@@ -40,7 +40,7 @@ import type { Socket } from "socket.io-client";
 // private
 // -----------------------------------------------------------------------------
 
-import { getFirebaseApp } from "./firebaseApp";
+import { getFirebaseApp, FIREBASE_CONFIG } from "./firebaseApp";
 let firestore: ReturnType<typeof getFirestore> | null = null;
 let firebaseStorage: ReturnType<typeof getStorage> | null = null;
 
