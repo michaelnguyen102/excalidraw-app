@@ -1,5 +1,4 @@
 
-import { initializeApp } from "firebase/app";
 import {
   getFirestore,
   collection,
@@ -19,18 +18,11 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { clearAppStateForLocalStorage } from "@excalidraw/excalidraw/appState";
 
-let FIREBASE_CONFIG: Record<string, any>;
-try {
-  FIREBASE_CONFIG = JSON.parse(import.meta.env.VITE_APP_FIREBASE_CONFIG);
-} catch {
-  FIREBASE_CONFIG = {};
-}
-let app: ReturnType<typeof initializeApp> | null = null;
+import { getFirebaseApp } from "./firebaseApp";
 let db: ReturnType<typeof getFirestore> | null = null;
 const getDb = () => {
   if (!db) {
-    if (!app) app = initializeApp(FIREBASE_CONFIG);
-    db = getFirestore(app);
+    db = getFirestore(getFirebaseApp());
   }
   return db;
 };

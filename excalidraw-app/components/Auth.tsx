@@ -5,17 +5,7 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    // Handle redirect result first (if user just came back from redirect login)
-    handleRedirectResult().finally(() => {
-      const unsub = subscribeAuth((u) => {
-        setUser(u);
-        setLoading(false);
-      });
-      // Need to keep unsub for cleanup - use closure
-      // We already set listener, but we need to return cleanup correctly.
-      // So we re-subscribe inside finally and store.
-    });
-    // Primary listener (also covers non-redirect case)
+    handleRedirectResult();
     const unsub = subscribeAuth((u) => {
       setUser(u);
       setLoading(false);

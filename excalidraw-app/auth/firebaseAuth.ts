@@ -1,4 +1,3 @@
-import { initializeApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -9,21 +8,7 @@ import {
   onAuthStateChanged,
   type User,
 } from "firebase/auth";
-
-let FIREBASE_CONFIG: Record<string, any>;
-try {
-  FIREBASE_CONFIG = JSON.parse(import.meta.env.VITE_APP_FIREBASE_CONFIG);
-} catch {
-  FIREBASE_CONFIG = {};
-}
-
-let firebaseApp: ReturnType<typeof initializeApp> | null = null;
-const getFirebaseApp = () => {
-  if (!firebaseApp) {
-    firebaseApp = initializeApp(FIREBASE_CONFIG);
-  }
-  return firebaseApp;
-};
+import { getFirebaseApp } from "../data/firebaseApp";
 
 let auth: ReturnType<typeof getAuth> | null = null;
 export const getFirebaseAuth = () => {
@@ -35,7 +20,6 @@ export const getFirebaseAuth = () => {
 
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
-  // Ensure prompt select account
   provider.setCustomParameters({ prompt: "select_account" });
   try {
     const result = await signInWithPopup(getFirebaseAuth(), provider);
@@ -43,9 +27,7 @@ export const signInWithGoogle = async () => {
   } catch (e: any) {
     const code = e?.code || "";
     if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-      // Fallback to redirect - will reload page
       await signInWithRedirect(getFirebaseAuth(), provider);
-      // This line never returns because redirect happens
       return null as unknown as User;
     }
     throw e;
